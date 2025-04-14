@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Alpaca Stock Calculator - Timed</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 2rem;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 1rem;
+      margin: 0.5rem;
+    }
+    .rise-status {
+      padding: 10px;
+      margin-top: 1rem;
+      display: inline-block;
+      border-radius: 5px;
+      background-color: #333;
+    }
+    .green { background-color: #00ff88; color: black; }
+    .red { background-color: #ff4d4d; color: black; }
+    .timer, .counter {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>📈 Alpaca Stock Calculator (Live)</h1>
+  <input id="symbol" placeholder="Symbol (e.g. AAPL)" />
+  <input id="amount" type="number" placeholder="Risk Amount ($)" />
+  <button onclick="start()">Start</button>
+
+  <div id="result"></div>
+  <div class="rise-status" id="status">Stock Rise</div>
+  <div class="timer" id="priceTimer">Price Timer: 2.5s</div>
+  <div class="timer" id="candleTimer">Stock Rise Timer: 5s</div>
+  <div class="counter" id="priceCounter">Price Requests: 0</div>
+  <div class="counter" id="candleCounter">Stock Rise Requests: 0</div>
+
+  <script>
+    let priceInt, candleInt, priceT, candleT;
+    let priceCount = 0, candleCount = 0;
+    let priceSec = 2.5, candleSec = 5;
+
+    function start() {
+      clearInterval(priceInt);
+      clearInterval(candleInt);
+      clearInterval(priceT);
+      clearInterval(candleT);
+      priceCount = 0;
+      candleCount = 0;
+
+      const symbol = document.getElementById("symbol").value.toUpperCase();
+      const amount = parseFloat(document.getElementById("amount").value);
+      const result = document.getElementById("result");
+      const status = document.getElementById("status");
+
+      async function fetchPrice() {
+        try {
+          const res = await fetch(`/.netlify/functions/price?symbol=${symbol}`);
+          const data = await res.json();
+          const shares = Math.floor(amount / data.price);
+          result.innerText = `Price: $${data.price.toFixed(2)} | Shares to Buy: ${shares}`;
+          priceCount++;
+          document.getElementById("priceCounter").innerText = `Price Requests: ${priceCount}`;
+        } catch {
+          result.innerText = "⚠️ Error fetching price";
+        }
+      }
+
+      async function fetchCandle() {
+        try {
+          const res = await fetch(`/.netlify/functions/candle?symbol=${symbol}`);
+          const data = await res.json();
+          if (data.length >= 2) {
+            const prev = data[data.length - 2].c;
+            const curr = data[data.length - 1].c;
+            status.className = 'rise-status ' + (curr > prev ? 'green' : 'red');
+          }
+          candleCount++;
+          document.getElementById("candleCounter").innerText = `Stock Rise Requests: ${candleCount}`;
+        } catch {
+          console.log("Candle fetch error");
+        }
+      }
+
+      fetchPrice();
+      fetchCandle();
+
+      priceInt = setInterval(fetchPrice, 2500);
+      candleInt = setInterval(fetchCandle, 5000);
+
+      priceT = setInterval(() => {
+        priceSec -= 0.1;
+        if (priceSec <= 0) priceSec = 2.5;
+        document.getElementById("priceTimer").innerText = `Price Timer: ${priceSec.toFixed(1)}s`;
+      }, 100);
+
+      candleT = setInterval(() => {
+        candleSec -= 1;
+        if (candleSec <= 0) candleSec = 5;
+        document.getElementById("candleTimer").innerText = `Stock Rise Timer: ${candleSec}s`;
+      }, 1000);
+    }
+  </script>
+</body>
+</html>
